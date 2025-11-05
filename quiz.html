@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quantum Quiz — Futuristic Educational App</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg-gradient: linear-gradient(135deg, #0a0a1f, #1c1c3c, #0f112b);
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --accent: #00d4ff;
+  --accent-glow: #00d4ff80;
+  --text: #e6e6ef;
+  --error: #ff5b5b;
+  --success: #00ffb0;
+}
+*{box-sizing:border-box;}
+body{
+  font-family:'Outfit',sans-serif;
+  margin:0;padding:0;
+  background:var(--bg-gradient);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding:2rem;
+}
+.container{
+  width:100%;max-width:900px;
+  background:var(--card-bg);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:20px;
+  backdrop-filter:blur(25px);
+  padding:2rem 3rem;
+  box-shadow:0 0 25px rgba(0,255,255,0.08);
+  animation:fadeIn 1.2s ease-in-out;
+}
+h1{text-align:center;font-weight:600;color:var(--accent);
+  text-shadow:0 0 15px var(--accent-glow);margin-bottom:2rem;font-size:2.2rem;}
+.question{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  padding:1.5rem;border-radius:14px;
+  margin-bottom:1.5rem;transition:all 0.4s ease;
+}
+.question:hover{box-shadow:0 0 15px rgba(0,212,255,0.2);transform:translateY(-3px);}
+.question p{font-weight:500;font-size:1.1rem;margin-bottom:0.8rem;}
+input[type="text"]{
+  width:100%;padding:10px 14px;background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.15);border-radius:10px;
+  color:var(--text);font-size:1rem;outline:none;
+  transition:border-color 0.3s,box-shadow 0.3s;
+}
+input[type="text"]:focus{border-color:var(--accent);box-shadow:0 0 10px var(--accent-glow);}
+button{
+  background:var(--accent);border:none;color:#000;
+  font-weight:600;letter-spacing:0.5px;padding:12px 22px;border-radius:12px;
+  cursor:pointer;display:block;margin:2rem auto 0;font-size:1.05rem;
+  transition:background 0.3s,transform 0.2s;
+}
+button:hover{background:var(--success);transform:scale(1.05);}
+.result{margin-top:2rem;text-align:center;font-size:1.1rem;line-height:1.8;}
+.correct{color:var(--success);text-shadow:0 0 8px var(--success);}
+.wrong{color:var(--error);text-shadow:0 0 8px var(--error);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+@media(max-width:600px){.container{padding:1.5rem;}}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Quantum Quiz ⚡</h1>
+
+  <div class="question" data-type="expr" data-hash="">
+    <p>1️⃣ Compute the result of (8 + 4) × (6 - 2)</p>
+    <input type="text" placeholder="Enter your answer…" class="answer">
+  </div>
+
+  <div class="question" data-type="expr" data-hash="">
+    <p>2️⃣ Evaluate: (15 ÷ 3) + (2 × 5)</p>
+    <input type="text" placeholder="Enter your answer…" class="answer">
+  </div>
+
+  <div class="question" data-type="mcq" data-hash="">
+    <p>3️⃣ What is the capital of Japan?</p>
+    <input type="text" placeholder="Enter your answer…" class="answer">
+  </div>
+
+  <div class="question" data-type="mcq" data-hash="">
+    <p>4️⃣ Which planet is known as the <b>Red Planet</b>?</p>
+    <input type="text" placeholder="Enter your answer…" class="answer">
+  </div>
+
+  <div class="question" data-type="mcq" data-hash="">
+    <p>5️⃣ In computing, what does “CPU” stand for?</p>
+    <input type="text" placeholder="Enter your answer…" class="answer">
+  </div>
+
+  <button id="submitBtn">Submit Quiz</button>
+  <div id="results" class="result"></div>
+</div>
+
+<script>
+// ===== SHA256 Utility =====
+async function sha256(str) {
+  const buf = new TextEncoder().encode(str);
+  const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ===== Stack-based Evaluation =====
+function infixToPostfix(expr) {
+  const prec = { '+':1, '-':1, '*':2, '/':2, '^':3 };
+  const stack = [];
+  const output = [];
+  const tokens = expr.match(/\d+(\.\d+)?|[+\-*/^()]/g);
+  if (!tokens) return [];
+  for (let t of tokens) {
+    if (!isNaN(t)) output.push(t);
+    else if (t === '(') stack.push(t);
+    else if (t === ')') {
+      while (stack.length && stack[stack.length - 1] !== '(')
+        output.push(stack.pop());
+      stack.pop();
+    } else {
+      while (stack.length && prec[stack[stack.length - 1]] >= prec[t])
+        output.push(stack.pop());
+      stack.push(t);
+    }
+  }
+  while (stack.length) output.push(stack.pop());
+  return output;
+}
+
+function evalPostfix(postfix) {
+  const stack = [];
+  for (let t of postfix) {
+    if (!isNaN(t)) stack.push(parseFloat(t));
+    else {
+      const b = stack.pop();
+      const a = stack.pop();
+      switch (t) {
+        case '+': stack.push(a + b); break;
+        case '-': stack.push(a - b); break;
+        case '*': stack.push(a * b); break;
+        case '/': stack.push(a / b); break;
+        case '^': stack.push(a ** b); break;
+      }
+    }
+  }
+  return stack.pop();
+}
+
+function evaluateExpression(expr) {
+  const postfix = infixToPostfix(expr);
+  return evalPostfix(postfix);
+}
+
+// ===== Quiz Logic =====
+const questions = document.querySelectorAll(".question");
+const correctAnswers = [
+  "48",            // (8+4)*(6-2)
+  "15",            // (15/3)+(2*5)
+  "Tokyo",         // Capital of Japan
+  "Mars",          // Red Planet
+  "Central Processing Unit" // CPU full form
+];
+
+(async function init() {
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const hash = await sha256(correctAnswers[i].toLowerCase());
+    q.dataset.hash = hash;
+  }
+})();
+
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const results = document.getElementById("results");
+  results.innerHTML = "";
+  let score = 0;
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const type = q.dataset.type;
+    const answer = q.querySelector(".answer").value.trim();
+    let evaluated = answer;
+
+    if (type === "expr") {
+      try { evaluated = String(evaluateExpression(answer)); }
+      catch { evaluated = "NaN"; }
+    }
+
+    const userHash = await sha256(evaluated.toLowerCase());
+    const correctHash = q.dataset.hash;
+    const line = document.createElement("div");
+
+    if (userHash === correctHash) {
+      line.innerHTML = `✅ Q${i + 1}: Correct — <span class="correct">${evaluated}</span>`;
+      score++;
+    } else {
+      line.innerHTML = `❌ Q${i + 1}: Wrong — You entered <span class="wrong">${answer}</span>`;
+    }
+    results.appendChild(line);
+  }
+
+  results.innerHTML += `<hr><p>Your final score: <b>${score}/${questions.length}</b></p>`;
+});
+</script>
+</body>
+</html>
